@@ -1,100 +1,278 @@
 import streamlit as st
-from datetime import datetime, date
+from datetime import date, datetime
 
-st.set_page_config(page_title="시간표", layout="centered")
+# -------------------------------------------------
+# 기본 설정
+# -------------------------------------------------
+st.set_page_config(page_title="AI Timetable", layout="centered")
 
-# ------------------ 데이터 구조 ------------------
-class TimeSlot:
-    def __init__(self, day: str, start: str, end: str, title: str, kind: str = "class"):
-        self.day = day          # '월' ~ '일'
-        self.start = start      # 'HH:MM'
-        self.end = end          # 'HH:MM'
-        self.title = title
-        self.kind = kind        # 'class' | 'task' | 'personal'
-
-
+# -------------------------------------------------
+# 유틸
+# -------------------------------------------------
 def time_to_minutes(t: str) -> int:
     h, m = map(int, t.split(":"))
     return h * 60 + m
 
 
-# 테스트용 기본 시간표 (질문에서 준 패턴 그대로)
-DEFAULT_SLOTS = [
-    TimeSlot('월', '09:00', '10:00', '데이터구조', 'class'),
-    TimeSlot('월', '10:00', '11:00', '데이터구조 과제 - 연결 리스트 구현', 'task'),
-    TimeSlot('월', '11:00', '12:00', '알고리즘', 'class'),
-    TimeSlot('월', '13:00', '14:00', '알고리즘 숙제 - 정렬 알고리즘 분석', 'task'),
-    TimeSlot('화', '09:00', '10:00', '운영체제', 'class'),
-    TimeSlot('화', '14:00', '15:00', '데이터베이스', 'class'),
-    TimeSlot('수', '10:00', '11:00', '네트워크', 'class'),
-    TimeSlot('목', '09:00', '10:00', '소프트웨어공학', 'class'),
-    TimeSlot('금', '13:00', '14:00', '인공지능', 'class'),
-]
+def time_overlaps(s1, e1, s2, e2) -> bool:
+    s1, e1, s2, e2 = map(time_to_minutes, [s1, e1, s2, e2])
+    return s1 < e2 and e1 > s2
 
-if "slots" not in st.session_state:
-    st.session_state.slots = DEFAULT_SLOTS
 
-if "active_tab" not in st.session_state:
-    st.session_state.active_tab = "home"
+# -------------------------------------------------
+# 초기 데이터
+# -------------------------------------------------
+def init_state():
+    if "active_tab" not in st.session_state:
+        st.session_state.active_tab = "home"
 
-slots = st.session_state.slots
-active_tab = st.session_state.active_tab
+    if "home_view_mode" not in st.session_state:
+        st.session_state.home_view_mode = "주간"
 
-# ------------------ 공통 스타일 ------------------
+    if "timetable" not in st.session_state:
+        st.session_state.timetable = [
+            # 수업/과제 예시 – 홈 탭 스크린샷 기준
+            dict(day="월", start="09:00", end="10:00", title="데이터구조", kind="class"),
+            dict(day="월", start="10:00", end="11:00", title="데이터구조 과제 - 연결 리스트 구현", kind="task"),
+            dict(day="월", start="11:00", end="12:00", title="알고리즘", kind="class"),
+            dict(day="월", start="13:00", end="14:00", title="알고리즘 숙제 - 정렬 알고리즘 분석", kind="task"),
+            dict(day="화", start="09:00", end="10:00", title="운영체제", kind="class"),
+            dict(day="화", start="14:00", end="15:00", title="데이터베이스", kind="class"),
+            dict(day="수", start="10:00", end="11:00", title="네트워크", kind="class"),
+            dict(day="목", start="09:00", end="10:00", title="소프트웨어공학", kind="class"),
+            dict(day="금", start="13:00", end="14:00", title="인공지능", kind="class"),
+        ]
+
+    if "assignments" not in st.session_state:
+        st.session_state.assignments = [
+            dict(
+                id="a1",
+                title="데이터구조 과제 - 연결 리스트 구현",
+                due="2025-12-05",
+                minutes=60,
+                priority="높음",
+                type="학교",
+                memo="도서관에서 하기",
+                added_to_ai=True,
+                completed=False,
+                progress=0,
+            ),
+            dict(
+                id="a2",
+                title="알고리즘 숙제 - 정렬 알고리즘 분석",
+                due="2025-12-07",
+                minutes=50,
+                priority="보통",
+                type="학교",
+                memo="",
+                added_to_ai=True,
+                completed=False,
+                progress=0,
+            ),
+        ]
+
+    if "task_filter" not in st.session_state:
+        st.session_state.task_filter = "전체 할일"
+
+    if "task_select_mode" not in st.session_state:
+        st.session_state.task_select_mode = False
+
+    if "task_selected_ids" not in st.session_state:
+        st.session_state.task_selected_ids = set()
+
+    if "preferences" not in st.session_state:
+        st.session_state.preferences = dict(
+            preferred_times=[dict(start="09:00", end="12:00")],
+            avoid_times=[dict(start="18:00", end="20:00")],
+            hide_classes_monthly=False,
+        )
+
+    if "recommendations" not in st.session_state:
+        st.session_state.recommendations = []
+
+
+init_state()
+
+timetable = st.session_state.timetable
+assignments = st.session_state.assignments
+prefs = st.session_state.preferences
+
+# -------------------------------------------------
+# 공통 CSS (전체 앱 스타일 + 하단 탭)
+# -------------------------------------------------
 st.markdown(
     """
-    <style>
-    body { background:#f3f4fb; }
-    .main { padding-bottom:80px; }  /* 하단 탭 자리 확보 */
+<style>
+body { background:#f3f4fb; }
+.main { padding-bottom:80px; }
 
-    .bottom-nav {
-        position:fixed;
-        left:0;
-        right:0;
-        bottom:0;
-        height:60px;
-        background:white;
-        border-top:1px solid #e5e7eb;
-        display:flex;
-        justify-content:space-around;
-        align-items:center;
-        font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
-        z-index:100;
-    }
-    .bottom-nav-item {
-        text-align:center;
-        font-size:11px;
-        color:#6b7280;
-    }
-    .bottom-nav-icon {
-        font-size:20px;
-        margin-bottom:2px;
-    }
-    .bottom-nav-active {
-        color:#4f46e5;
-        font-weight:600;
-    }
+.bottom-nav {
+    position:fixed;
+    left:0; right:0; bottom:0;
+    height:60px;
+    background:white;
+    border-top:1px solid #e5e7eb;
+    display:flex;
+    justify-content:space-around;
+    align-items:center;
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+    z-index:100;
+}
+.bottom-nav-item {
+    text-align:center;
+    font-size:11px;
+    color:#6b7280;
+}
+.bottom-nav-icon {
+    font-size:20px;
+    margin-bottom:2px;
+}
+.bottom-nav-active {
+    color:#4f46e5;
+    font-weight:600;
+}
 
-    /* Streamlit 버튼을 투명하게 해서 클릭만 맡기고, 실제 아이콘/텍스트는 HTML로 표현 */
-    .nav-btn > button {
-        background:transparent !important;
-        border:none !important;
-        color:transparent !important;
-        height:60px;
-        width:100%;
-        cursor:pointer;
-    }
-    </style>
-    """,
+/* 네비 버튼 감추기 (클릭만 담당) */
+.nav-btn > button {
+    background:transparent !important;
+    border:none !important;
+    color:transparent !important;
+    height:60px;
+    width:100%;
+    cursor:pointer;
+}
+
+/* 카드/버튼 공통 스타일 */
+.section-card {
+    background:white;
+    border-radius:18px;
+    padding:16px;
+    border:1px solid #e5e7eb;
+    box-shadow:0 4px 16px rgba(15,23,42,0.04);
+    margin-bottom:16px;
+}
+.section-title {
+    font-weight:600;
+    font-size:18px;
+    margin-bottom:8px;
+}
+.chip-toggle {
+    display:inline-flex;
+    padding:6px 16px;
+    border-radius:999px;
+    border:1px solid #e5e7eb;
+    font-size:13px;
+    margin-right:4px;
+    cursor:pointer;
+    background:#f9fafb;
+}
+.chip-toggle.active {
+    background:white;
+    box-shadow:0 2px 8px rgba(15,23,42,0.08);
+    border-color:#e5e7eb;
+}
+
+/* 과제 카드 */
+.task-card {
+    background:#f5f7ff;
+    border-radius:16px;
+    padding:12px 14px;
+    border:1px solid #d1ddff;
+    margin-bottom:10px;
+    font-size:13px;
+}
+.task-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:6px;
+}
+.task-title {
+    font-weight:600;
+}
+.tag-type {
+    font-size:11px;
+    padding:2px 6px;
+    border-radius:999px;
+    background:#e0ebff;
+    color:#1d4ed8;
+}
+.tag-ai {
+    font-size:11px;
+    padding:2px 6px;
+    border-radius:999px;
+    background:#eef2ff;
+    color:#4f46e5;
+}
+.tag-priority-high {
+    font-size:11px;
+    padding:2px 6px;
+    border-radius:999px;
+    background:#fee2e2;
+    color:#b91c1c;
+}
+.tag-priority-mid {
+    font-size:11px;
+    padding:2px 6px;
+    border-radius:999px;
+    background:#fef3c7;
+    color:#92400e;
+}
+
+/* AI 추천 카드 */
+.ai-card {
+    background:#ffffff;
+    border-radius:16px;
+    padding:12px 14px;
+    border:1px solid #e5e7eb;
+    margin-bottom:10px;
+    font-size:13px;
+}
+.ai-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:4px;
+    font-size:12px;
+    color:#4b5563;
+}
+.ai-badge-day {
+    font-weight:600;
+    color:#1d4ed8;
+}
+.ai-footer {
+    display:flex;
+    justify-content:space-between;
+    margin-top:8px;
+}
+
+/* 설정 칩 */
+.pref-box {
+    border-radius:16px;
+    padding:12px 14px;
+    border:1px solid #bbf7d0;
+    background:#ecfdf3;
+    margin-bottom:12px;
+}
+.pref-box-avoid {
+    border-color:#fecaca;
+    background:#fef2f2;
+}
+
+/* 홈 주간뷰/월간뷰 토글 라디오 숨기기 라벨만 사용 */
+</style>
+""",
     unsafe_allow_html=True,
 )
 
-# ------------------ 뷰 함수들 ------------------
-def render_weekly_view(slots):
-    days = ['월', '화', '수', '목', '금']
+# -------------------------------------------------
+# 홈 탭 – 주간/월간 시간표
+# -------------------------------------------------
+def render_weekly_view():
+    days = ["월", "화", "수", "목", "금"]
     start_hour = 9
-    end_hour = 16          # 9시 ~ 16시만
-    num_rows = end_hour - start_hour + 1  # 9,10,11,12,13,14,15,16 = 8줄
+    end_hour = 16
+    num_rows = end_hour - start_hour + 1
 
     html = """
     <style>
@@ -180,14 +358,11 @@ def render_weekly_view(slots):
 
     html += "<div class='week-wrapper'>"
 
-    # 헤더
-    html += "<div class='week-header-row'>"
-    html += "<div></div>"
+    html += "<div class='week-header-row'><div></div>"
     for d in days:
         html += f"<div style='font-weight:500;'>{d}</div>"
     html += "</div>"
 
-    # 그리드 베이스
     html += "<div class='week-body'>"
     for row, hour in enumerate(range(start_hour, end_hour + 1), start=1):
         html += (
@@ -198,16 +373,15 @@ def render_weekly_view(slots):
                 f"<div class='grid-cell' style='grid-column:{col};grid-row:{row};'></div>"
             )
 
-    # 블록 배치
-    day_index = {d: i for i, d in enumerate(days)}  # '월'->0 ...
-    for ev in slots:
-        if ev.day not in day_index:
+    day_index = {d: i for i, d in enumerate(days)}
+    for ev in timetable:
+        if ev["day"] not in day_index:
             continue
-        col = day_index[ev.day] + 2  # 1은 시간축
-        start_min = time_to_minutes(ev.start)
-        end_min = time_to_minutes(ev.end)
+        col = day_index[ev["day"]] + 2
+
+        start_min = time_to_minutes(ev["start"])
+        end_min = time_to_minutes(ev["end"])
         base_min = start_hour * 60
-        # 9시 이전 / 16시 이후는 잘라냄
         if end_min <= base_min or start_min >= (end_hour + 1) * 60:
             continue
         start_min = max(start_min, base_min)
@@ -216,35 +390,32 @@ def render_weekly_view(slots):
         start_slot = int((start_min - base_min) / 60) + 1
         span = max(1, int((end_min - start_min) / 60))
 
-        kind = ev.kind if ev.kind in ["class", "task", "personal"] else "class"
-
+        kind = ev.get("kind", "class")
         html += f"""
         <div class="event {kind}"
              style="grid-column:{col};
                     grid-row:{start_slot}/span {span};">
-            {ev.title}
+            {ev["title"]}
         </div>
         """
 
-    html += "</div>"  # week-body
-
-    # 범례
+    html += "</div>"
     html += """
-    <div class="legend">
-      <span><span class="dot class"></span>수업</span>
-      <span><span class="dot task"></span>학교 과제</span>
-      <span><span class="dot personal"></span>개인 일정</span>
+      <div class="legend">
+        <span><span class="dot class"></span>수업</span>
+        <span><span class="dot task"></span>학교 과제</span>
+        <span><span class="dot personal"></span>개인 일정</span>
+      </div>
     </div>
     """
-
-    html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_monthly_view(slots, year=2025, month=11):
+def render_monthly_view():
     days_kr = ["월", "화", "수", "목", "금", "토", "일"]
+    year, month = 2025, 11
     first_day = date(year, month, 1)
-    start_weekday = first_day.weekday()  # 월=0
+    start_weekday = first_day.weekday()
     if month == 12:
         next_month = date(year + 1, 1, 1)
     else:
@@ -252,10 +423,12 @@ def render_monthly_view(slots, year=2025, month=11):
     num_days = (next_month - first_day).days
 
     titles_by_day = {}
-    for ev in slots:
-        titles_by_day.setdefault(ev.day, [])
-        if ev.title not in titles_by_day[ev.day]:
-            titles_by_day[ev.day].append(ev.title)
+    for ev in timetable:
+        if prefs.get("hide_classes_monthly") and ev.get("kind") == "class":
+            continue
+        titles_by_day.setdefault(ev["day"], [])
+        if ev["title"] not in titles_by_day[ev["day"]]:
+            titles_by_day[ev["day"]].append(ev["title"])
 
     html = """
     <style>
@@ -332,45 +505,494 @@ def render_monthly_view(slots, year=2025, month=11):
     st.markdown(html, unsafe_allow_html=True)
 
 
-# ------------------ 메인 컨텐츠 ------------------
-# 상단 헤더는 홈 탭에서만 (이미지처럼)
-if active_tab == "home":
-    col_left, col_center, col_right = st.columns([1, 1.4, 1])
-    with col_left:
+# -------------------------------------------------
+# 과제 탭
+# -------------------------------------------------
+def render_task_tab():
+    st.markdown("<div class='section-title'>과제 관리</div>", unsafe_allow_html=True)
+
+    # 필터 토글 (오늘의 할일 / 전체 할일)
+    c1, c2 = st.columns(2)
+    with c1:
+        on_today = st.session_state.task_filter == "오늘의 할일"
+        if st.button("오늘의 할일", use_container_width=True):
+            st.session_state.task_filter = "오늘의 할일"
+    with c2:
+        on_all = st.session_state.task_filter == "전체 할일"
+        if st.button("전체 할일", use_container_width=True):
+            st.session_state.task_filter = "전체 할일"
+
+    # URL로 추가 섹션
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("**과제 URL로 추가**  🔗", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:12px;color:#6b7280;margin-bottom:8px;'>학교 과제 스케줄 URL을 입력하면 자동으로 과제를 분석해드립니다.</div>",
+        unsafe_allow_html=True,
+    )
+    url = st.text_input("url_input", "https://...", label_visibility="collapsed")
+    cols = st.columns([3, 1])
+    with cols[1]:
+        if st.button("분석", use_container_width=True):
+            if url and url != "https://...":
+                # 데모용 더미 과제 하나 추가
+                new_id = f"url-{len(assignments)+1}"
+                assignments.append(
+                    dict(
+                        id=new_id,
+                        title="URL에서 가져온 과제",
+                        due=datetime.today().strftime("%Y-%m-%d"),
+                        minutes=40,
+                        priority="보통",
+                        type="학교",
+                        memo="URL 분석으로 생성됨",
+                        added_to_ai=False,
+                        completed=False,
+                        progress=0,
+                    )
+                )
+                st.success("과제를 분석하여 목록에 추가했어.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 직접 추가 섹션
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("**직접 추가**", unsafe_allow_html=True)
+
+    with st.form("direct_add_form", clear_on_submit=True):
+        title = st.text_input("과제 제목")
+        col1, col2 = st.columns(2)
+        with col1:
+            due = st.date_input("마감일", datetime.today())
+        with col2:
+            minutes = st.number_input("예상 소요 시간(분)", min_value=10, max_value=300, value=60, step=10)
+        col3, col4 = st.columns(2)
+        with col3:
+            priority = st.selectbox("우선순위", ["높음", "보통", "낮음"])
+        with col4:
+            atype = st.selectbox("종류", ["학교", "개인"])
+        memo = st.text_input("메모 (선택)")
+        submitted = st.form_submit_button("추가")
+        if submitted and title:
+            new_id = f"new-{len(assignments)+1}"
+            assignments.append(
+                dict(
+                    id=new_id,
+                    title=title,
+                    due=due.strftime("%Y-%m-%d"),
+                    minutes=int(minutes),
+                    priority=priority,
+                    type=atype,
+                    memo=memo,
+                    added_to_ai=False,
+                    completed=False,
+                    progress=0,
+                )
+            )
+            st.success("새 과제를 추가했어.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 선택 모드 토글
+    top_cols = st.columns([5, 1])
+    with top_cols[0]:
+        st.markdown("#### 할일", unsafe_allow_html=True)
+    with top_cols[1]:
+        if st.button("선택", use_container_width=True):
+            st.session_state.task_select_mode = not st.session_state.task_select_mode
+            st.session_state.task_selected_ids = set()
+
+    # 필터링
+    if st.session_state.task_filter == "오늘의 할일":
+        today_str = datetime.today().strftime("%Y-%m-%d")
+        shown = [a for a in assignments if a["due"] == today_str]
+    else:
+        shown = list(assignments)
+
+    # 날짜별 그룹
+    shown.sort(key=lambda x: x["due"])
+    grouped = {}
+    for a in shown:
+        grouped.setdefault(a["due"], []).append(a)
+
+    # 리스트 렌더링
+    for due, items in grouped.items():
+        d = datetime.strptime(due, "%Y-%m-%d").date()
+        weekday = ["월", "화", "수", "목", "금", "토", "일"][d.weekday()]
+        st.markdown(
+            f"**{d.month}월 {d.day}일 ({weekday})**",
+            unsafe_allow_html=True,
+        )
+        for a in items:
+            selected = a["id"] in st.session_state.task_selected_ids
+            col_sel, col_card = st.columns([0.4, 9.6])
+            with col_sel:
+                if st.session_state.task_select_mode:
+                    chk = st.checkbox(
+                        "",
+                        key=f"sel_{a['id']}",
+                        value=selected,
+                    )
+                    if chk:
+                        st.session_state.task_selected_ids.add(a["id"])
+                    else:
+                        st.session_state.task_selected_ids.discard(a["id"])
+            with col_card:
+                pr_tag = (
+                    "tag-priority-high"
+                    if a["priority"] == "높음"
+                    else "tag-priority-mid"
+                    if a["priority"] == "보통"
+                    else ""
+                )
+                ai_tag = "<span class='tag-ai'>AI 추가됨</span>" if a["added_to_ai"] else ""
+                html = f"""
+                <div class='task-card'>
+                  <div class='task-header'>
+                    <div>
+                      <div class='task-title'>{a["title"]}</div>
+                      <div style='margin-top:4px;font-size:12px;color:#6b7280;'>
+                        <span class='tag-type'>{a["type"]}</span>
+                        &nbsp;
+                        <span class='{pr_tag}'>{a["priority"]}</span>
+                        &nbsp;
+                        {ai_tag}
+                      </div>
+                    </div>
+                    <div style='font-size:18px;color:#9ca3af;'>✓</div>
+                  </div>
+                  <div style='font-size:12px;color:#6b7280;margin-top:4px;'>
+                    📅 {d.month}월 {d.day}일 ({weekday})  ·  ⏱ {a["minutes"]}분
+                  </div>
+                  <div style='font-size:12px;color:#6b7280;margin-top:2px;'>
+                    {'📂 ' + a["memo"] if a["memo"] else ''}
+                  </div>
+                </div>
+                """
+                st.markdown(html, unsafe_allow_html=True)
+
+    # 선택된 과제에 대해 AI 추가 / 삭제 / 삭제
+    if st.session_state.task_select_mode and st.session_state.task_selected_ids:
+        st.write("")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if st.button("AI에 추가"):
+                for a in assignments:
+                    if a["id"] in st.session_state.task_selected_ids:
+                        a["added_to_ai"] = True
+                st.success("선택한 과제를 AI에 추가했어.")
+        with c2:
+            if st.button("AI에서 제외"):
+                for a in assignments:
+                    if a["id"] in st.session_state.task_selected_ids:
+                        a["added_to_ai"] = False
+                st.success("선택한 과제를 AI에서 제외했어.")
+        with c3:
+            if st.button("삭제"):
+                st.session_state.assignments = [
+                    a for a in assignments if a["id"] not in st.session_state.task_selected_ids
+                ]
+                st.session_state.task_selected_ids = set()
+                st.success("선택한 과제를 삭제했어.")
+
+
+# -------------------------------------------------
+# AI 추천 탭 – 공강 기반 추천
+# -------------------------------------------------
+def generate_recommendations():
+    days = ["월", "화", "수", "목", "금"]
+    school_hours = [
+        ("09:00", "10:00"),
+        ("10:00", "11:00"),
+        ("11:00", "12:00"),
+        ("13:00", "14:00"),
+        ("14:00", "15:00"),
+        ("15:00", "16:00"),
+    ]
+
+    # 공강 구하기
+    free_slots = []
+    for d in days:
+        day_slots = [s for s in timetable if s["day"] == d]
+        for s, e in school_hours:
+            has_class = any(time_overlaps(s, e, t["start"], t["end"]) for t in day_slots)
+            if not has_class:
+                free_slots.append(dict(day=d, start=s, end=e))
+
+    # 과제 후보
+    pending = [
+        a
+        for a in assignments
+        if (not a["completed"]) and a["added_to_ai"]
+    ]
+
+    # 우선순위/마감일 기준 정렬
+    order = {"높음": 0, "보통": 1, "낮음": 2}
+    pending.sort(key=lambda a: (order.get(a["priority"], 3), a["due"]))
+
+    recs = []
+    used_ids = set()
+
+    for slot in free_slots:
+        # 선호/회피 시간 필터
+        skip = False
+        for avoid in prefs.get("avoid_times", []):
+            if time_overlaps(slot["start"], slot["end"], avoid["start"], avoid["end"]):
+                skip = True
+                break
+        if skip:
+            continue
+
+        pref_list = prefs.get("preferred_times", [])
+        if pref_list:
+            if not any(
+                time_overlaps(slot["start"], slot["end"], p["start"], p["end"])
+                for p in pref_list
+            ):
+                continue
+
+        slot_minutes = time_to_minutes(slot["end"]) - time_to_minutes(slot["start"])
+
+        chosen = None
+        for a in pending:
+            if a["id"] in used_ids:
+                continue
+            if a["minutes"] <= slot_minutes:
+                chosen = a
+                break
+
+        if chosen:
+            used_ids.add(chosen["id"])
+            recs.append(
+                dict(
+                    slot=slot,
+                    assignment=chosen,
+                    reason=f"{chosen['minutes']}분 소요 예상 - {slot['day']}요일 {slot['start']}~{slot['end']} 공강 시간 활용",
+                )
+            )
+
+    st.session_state.recommendations = recs
+
+
+def render_ai_tab():
+    st.markdown("<div class='section-title'>AI 추천</div>", unsafe_allow_html=True)
+    top_cols = st.columns([6, 1])
+    with top_cols[0]:
+        st.markdown(
+            "<div style='font-size:13px;color:#6b7280;'>AI가 공강 시간과 과제를 분석하여 최적의 일정을 추천합니다.</div>",
+            unsafe_allow_html=True,
+        )
+    with top_cols[1]:
+        if st.button("재생성", use_container_width=True):
+            generate_recommendations()
+            st.success("추천 일정을 다시 만들었어.")
+
+    # 요약 박스
+    added = [a for a in assignments if a["added_to_ai"]]
+    recs = st.session_state.recommendations
+    st.markdown(
+        f"""
+        <div class='section-card' style='background:#eef2ff;border-color:#c7d2fe;'>
+          <div style='font-size:13px;color:#1d4ed8;'>
+            📊 AI에 추가된 과제: {len(added)}개 | 생성된 추천: {len(recs)}개
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 버튼 행 (일정 재생성/목록/시간표 보기)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("일정 재생성", use_container_width=True):
+            generate_recommendations()
+    with c2:
+        st.button("목록 보기", use_container_width=True)
+    with c3:
+        st.button("시간표 보기", use_container_width=True)
+
+    st.markdown("#### AI 추천 결과", unsafe_allow_html=True)
+
+    if not recs:
+        st.info("아직 추천 일정이 없어. 과제를 AI에 추가하고 시간표를 설정하면 일정이 만들어져.")
+        return
+
+    # 추천 카드 리스트
+    for idx, r in enumerate(recs):
+        slot = r["slot"]
+        a = r["assignment"]
+        d = datetime.strptime(a["due"], "%Y-%m-%d").date()
+        weekday = ["월", "화", "수", "목", "금", "토", "일"][d.weekday()]
+
+        html = f"""
+        <div class='ai-card'>
+          <div class='ai-header'>
+            <span class='ai-badge-day'>{slot['day']}요일  {slot['start']} - {slot['end']}</span>
+            <span style='color:#dc2626;font-weight:600;font-size:11px;'>긴급</span>
+          </div>
+          <div style='margin-bottom:4px;'>
+            <div style='font-weight:600;'>{a["title"]}</div>
+            <div style='font-size:12px;color:#6b7280;margin-top:2px;'>
+              📅 마감: {d.year}-{d.month:02d}-{d.day:02d} ({weekday}) · ⏱ {a["minutes"]}분
+            </div>
+          </div>
+          <div style='font-size:12px;color:#4b5563;margin-top:4px;'>
+            💡 {r["reason"]}
+          </div>
+        """
+        st.markdown(html, unsafe_allow_html=True)
+
+        # 하단 버튼 (진도율 체크 / 완료)
+        col1, col2 = st.columns(2)
+        with col1:
+            prog = st.slider(
+                f"진도율 체크_{idx}",
+                min_value=0,
+                max_value=100,
+                step=10,
+                value=a["progress"],
+                label_visibility="collapsed",
+            )
+            a["progress"] = prog
+        with col2:
+            if st.button("완료", key=f"done_{idx}", use_container_width=True):
+                a["completed"] = True
+                a["progress"] = 100
+                st.success("과제를 완료로 표시했어.")
+        st.write("")
+
+
+# -------------------------------------------------
+# 설정 탭 – 선호 시간 / 피하고 싶은 시간 / 월간 설정
+# -------------------------------------------------
+def render_settings_tab():
+    st.markdown("<div class='section-title'>설정</div>", unsafe_allow_html=True)
+    st.markdown("**과제 선호 설정**", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:13px;color:#6b7280;margin-bottom:12px;'>과제할 때 선호하는 시간대를 설정하면 더 맞춤화된 추천을 받을 수 있어.</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 선호 시간대
+    st.markdown("<div class='pref-box'>", unsafe_allow_html=True)
+    st.markdown("🕒 선호하는 시간대", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        p_start = st.time_input("pref_start", datetime.strptime("09:00", "%H:%M").time(), label_visibility="collapsed")
+    with col2:
+        p_end = st.time_input("pref_end", datetime.strptime("12:00", "%H:%M").time(), label_visibility="collapsed")
+    with col3:
+        if st.button("추가", key="add_pref", use_container_width=True):
+            st.session_state.preferences["preferred_times"].append(
+                dict(
+                    start=p_start.strftime("%H:%M"),
+                    end=p_end.strftime("%H:%M"),
+                )
+            )
+    # 목록
+    if prefs["preferred_times"]:
+        chips = []
+        for i, t in enumerate(prefs["preferred_times"]):
+            chips.append(f"{t['start']}~{t['end']}")
+        st.markdown(
+            "<div style='font-size:12px;color:#374151;margin-top:6px;'>"
+            + " · ".join(chips)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 피하고 싶은 시간대
+    st.markdown("<div class='pref-box pref-box-avoid'>", unsafe_allow_html=True)
+    st.markdown("⛔ 피하고 싶은 시간대", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        a_start = st.time_input("avoid_start", datetime.strptime("18:00", "%H:%M").time(), label_visibility="collapsed")
+    with col2:
+        a_end = st.time_input("avoid_end", datetime.strptime("20:00", "%H:%M").time(), label_visibility="collapsed")
+    with col3:
+        if st.button("추가", key="add_avoid", use_container_width=True):
+            st.session_state.preferences["avoid_times"].append(
+                dict(
+                    start=a_start.strftime("%H:%M"),
+                    end=a_end.strftime("%H:%M"),
+                )
+            )
+    if prefs["avoid_times"]:
+        chips = [f"{t['start']}~{t['end']}" for t in prefs["avoid_times"]]
+        st.markdown(
+            "<div style='font-size:12px;color:#374151;margin-top:6px;'>"
+            + " · ".join(chips)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 월간 캘린더 설정
+    st.markdown(
+        "<div style='margin-top:12px;padding:12px 14px;border-radius:16px;background:#f5f3ff;border:1px solid #ddd6fe;'>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("**월간 캘린더 설정**", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:12px;color:#6b7280;margin-bottom:8px;'>월간 뷰에서 고정 학교 수업 표시 여부</div>",
+        unsafe_allow_html=True,
+    )
+    hide = st.toggle(
+        "월간 뷰에서 학교 수업 숨기기",
+        value=prefs.get("hide_classes_monthly", False),
+    )
+    st.session_state.preferences["hide_classes_monthly"] = hide
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.button("설정 저장", use_container_width=True):
+        st.success("설정을 저장했어.")
+
+
+# -------------------------------------------------
+# 메인 라우팅 (홈 / 과제 / AI / 설정)
+# -------------------------------------------------
+tab = st.session_state.active_tab
+
+if tab == "home":
+    # 상단 헤더 (시간표 1, 주차, 뷰 토글)
+    c1, c2, c3 = st.columns([1, 1.5, 1])
+    with c1:
         st.markdown("### 시간표 1")
-    with col_center:
+    with c2:
         st.markdown(
             "<div style='text-align:center;font-weight:600;margin-top:4px;'>2025년 11월 5주차</div>",
             unsafe_allow_html=True,
         )
 
-    view_mode = st.radio(
-        "view_mode",
-        options=["주간", "월간"],
-        index=0,
-        horizontal=True,
-        label_visibility="collapsed",
-    )
+    # 일간/주간/월간 탭 (일간은 비활성 느낌만)
+    view = st.session_state.home_view_mode
+    t1, t2, t3 = st.columns(3)
+    with t1:
+        st.button("일간", use_container_width=True, disabled=True)
+    with t2:
+        if st.button("주간", use_container_width=True):
+            st.session_state.home_view_mode = "주간"
+            view = "주간"
+    with t3:
+        if st.button("월간", use_container_width=True):
+            st.session_state.home_view_mode = "월간"
+            view = "월간"
 
-    if view_mode == "주간":
-        render_weekly_view(slots)
+    if view == "주간":
+        render_weekly_view()
     else:
-        render_monthly_view(slots)
+        render_monthly_view()
 
-elif active_tab == "task":
-    st.subheader("과제")
-    st.write("여기에 과제 관리 화면 넣으면 됨 (지금은 자리만 잡아둔 상태).")
+elif tab == "task":
+    render_task_tab()
 
-elif active_tab == "ai":
-    st.subheader("AI")
-    st.write("여기에 AI 추천 화면 넣으면 됨 (지금은 자리만 잡아둔 상태).")
+elif tab == "ai":
+    render_ai_tab()
 
-elif active_tab == "settings":
-    st.subheader("설정")
-    st.write("여기에 설정 화면 넣으면 됨.")
+elif tab == "settings":
+    render_settings_tab()
 
-# ------------------ 하단 탭 네비게이션 ------------------
-# 버튼은 클릭 이벤트만 담당, 실제 모양은 아래 HTML이 담당
+# -------------------------------------------------
+# 하단 탭 네비게이션 (클릭용 버튼 + 실제 UI)
+# -------------------------------------------------
 nav_container = st.container()
 with nav_container:
     c1, c2, c3, c4 = st.columns(4)
@@ -387,23 +1009,22 @@ with nav_container:
         if st.button("settings", key="nav_settings", help="설정", type="secondary"):
             st.session_state.active_tab = "settings"
 
-# 실제 하단 바 UI (아이콘/텍스트)
 st.markdown(
     f"""
     <div class="bottom-nav">
-      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='home' else ''}">
+      <div class="bottom-nav-item {'bottom-nav-active' if tab=='home' else ''}">
         <div class="bottom-nav-icon">🏠</div>
         홈
       </div>
-      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='task' else ''}">
+      <div class="bottom-nav-item {'bottom-nav-active' if tab=='task' else ''}">
         <div class="bottom-nav-icon">✅</div>
         과제
       </div>
-      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='ai' else ''}">
+      <div class="bottom-nav-item {'bottom-nav-active' if tab=='ai' else ''}">
         <div class="bottom-nav-icon">✨</div>
         AI
       </div>
-      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='settings' else ''}">
+      <div class="bottom-nav-item {'bottom-nav-active' if tab=='settings' else ''}">
         <div class="bottom-nav-icon">⚙️</div>
         설정
       </div>
