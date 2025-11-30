@@ -1,9 +1,9 @@
 import streamlit as st
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 
 st.set_page_config(page_title="시간표", layout="centered")
 
-# ---------------- 기본 데이터 ----------------
+# ------------------ 데이터 구조 ------------------
 class TimeSlot:
     def __init__(self, day: str, start: str, end: str, title: str, kind: str = "class"):
         self.day = day          # '월' ~ '일'
@@ -18,7 +18,7 @@ def time_to_minutes(t: str) -> int:
     return h * 60 + m
 
 
-# 테스트용 시간표 (질문에서 준 것)
+# 테스트용 기본 시간표 (질문에서 준 패턴 그대로)
 DEFAULT_SLOTS = [
     TimeSlot('월', '09:00', '10:00', '데이터구조', 'class'),
     TimeSlot('월', '10:00', '11:00', '데이터구조 과제 - 연결 리스트 구현', 'task'),
@@ -34,37 +34,68 @@ DEFAULT_SLOTS = [
 if "slots" not in st.session_state:
     st.session_state.slots = DEFAULT_SLOTS
 
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "home"
+
 slots = st.session_state.slots
+active_tab = st.session_state.active_tab
 
-# ----- 상단 바 -----
-col_left, col_center, col_right = st.columns([1, 1.4, 1])
-with col_left:
-    st.markdown("### 시간표 1")
-with col_center:
-    st.markdown(
-        "<div style='text-align:center;font-weight:600;margin-top:4px;'>2025년 11월 5주차</div>",
-        unsafe_allow_html=True,
-    )
+# ------------------ 공통 스타일 ------------------
+st.markdown(
+    """
+    <style>
+    body { background:#f3f4fb; }
+    .main { padding-bottom:80px; }  /* 하단 탭 자리 확보 */
 
-view_mode = st.radio(
-    "보기",
-    options=["주간", "월간"],
-    index=0,
-    horizontal=True,
-    label_visibility="collapsed",
+    .bottom-nav {
+        position:fixed;
+        left:0;
+        right:0;
+        bottom:0;
+        height:60px;
+        background:white;
+        border-top:1px solid #e5e7eb;
+        display:flex;
+        justify-content:space-around;
+        align-items:center;
+        font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+        z-index:100;
+    }
+    .bottom-nav-item {
+        text-align:center;
+        font-size:11px;
+        color:#6b7280;
+    }
+    .bottom-nav-icon {
+        font-size:20px;
+        margin-bottom:2px;
+    }
+    .bottom-nav-active {
+        color:#4f46e5;
+        font-weight:600;
+    }
+
+    /* Streamlit 버튼을 투명하게 해서 클릭만 맡기고, 실제 아이콘/텍스트는 HTML로 표현 */
+    .nav-btn > button {
+        background:transparent !important;
+        border:none !important;
+        color:transparent !important;
+        height:60px;
+        width:100%;
+        cursor:pointer;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-
-# ==========================================================
-# 주간 뷰 : 그리드에 시간표 블록 배치 (이미지와 최대한 유사)
-# ==========================================================
+# ------------------ 뷰 함수들 ------------------
 def render_weekly_view(slots):
     days = ['월', '화', '수', '목', '금']
     start_hour = 9
-    end_hour = 16  # 마지막 눈금 16시
-    num_rows = end_hour - start_hour + 1  # 9~16 => 8줄
+    end_hour = 16          # 9시 ~ 16시만
+    num_rows = end_hour - start_hour + 1  # 9,10,11,12,13,14,15,16 = 8줄
 
-    # HTML 빌드
     html = """
     <style>
     .week-wrapper {
@@ -149,38 +180,39 @@ def render_weekly_view(slots):
 
     html += "<div class='week-wrapper'>"
 
-    # 요일 헤더
+    # 헤더
     html += "<div class='week-header-row'>"
-    html += "<div></div>"  # 시간 칼럼
+    html += "<div></div>"
     for d in days:
         html += f"<div style='font-weight:500;'>{d}</div>"
     html += "</div>"
 
-    # 본문 그리드 (시간 눈금 + 빈 셀 + 이벤트)
+    # 그리드 베이스
     html += "<div class='week-body'>"
-
-    # 시간/그리드 기본 셀
     for row, hour in enumerate(range(start_hour, end_hour + 1), start=1):
-        # 시간 레이블 (첫 컬럼)
         html += (
             f"<div class='hour-label' style='grid-column:1;grid-row:{row};'>{hour}</div>"
         )
-        # 나머지 5일 빈 셀
-        for col in range(2, 7):  # 2~6
+        for col in range(2, 7):
             html += (
                 f"<div class='grid-cell' style='grid-column:{col};grid-row:{row};'></div>"
             )
 
-    # 이벤트(수업/과제/개인) 배치
+    # 블록 배치
     day_index = {d: i for i, d in enumerate(days)}  # '월'->0 ...
     for ev in slots:
         if ev.day not in day_index:
             continue
-        col = day_index[ev.day] + 2  # 1은 시간 축
-
+        col = day_index[ev.day] + 2  # 1은 시간축
         start_min = time_to_minutes(ev.start)
         end_min = time_to_minutes(ev.end)
         base_min = start_hour * 60
+        # 9시 이전 / 16시 이후는 잘라냄
+        if end_min <= base_min or start_min >= (end_hour + 1) * 60:
+            continue
+        start_min = max(start_min, base_min)
+        end_min = min(end_min, (end_hour + 1) * 60)
+
         start_slot = int((start_min - base_min) / 60) + 1
         span = max(1, int((end_min - start_min) / 60))
 
@@ -205,37 +237,26 @@ def render_weekly_view(slots):
     </div>
     """
 
-    html += "</div>"  # wrapper
-
+    html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
 
-# ==========================================================
-# 월간 뷰 : 달력 + 요일별 반복되는 블록 제목
-# (시간은 무시하고, 해당 요일에 있는 과목 이름만 표시)
-# ==========================================================
 def render_monthly_view(slots, year=2025, month=11):
-    # 요일 이름 / index 매핑 (월~일)
     days_kr = ["월", "화", "수", "목", "금", "토", "일"]
-
-    # 이 달의 1일과 시작 요일 계산 (월=0)
     first_day = date(year, month, 1)
-    start_weekday = (first_day.weekday())  # 월=0 ~ 일=6
-    # 마지막 날짜
+    start_weekday = first_day.weekday()  # 월=0
     if month == 12:
         next_month = date(year + 1, 1, 1)
     else:
         next_month = date(year, month + 1, 1)
     num_days = (next_month - first_day).days
 
-    # 요일별 제목 목록 (중복 제거)
     titles_by_day = {}
     for ev in slots:
         titles_by_day.setdefault(ev.day, [])
         if ev.title not in titles_by_day[ev.day]:
             titles_by_day[ev.day].append(ev.title)
 
-    # CSS + HTML
     html = """
     <style>
     .month-wrapper{
@@ -290,35 +311,103 @@ def render_monthly_view(slots, year=2025, month=11):
     <div class="month-wrapper">
     """
 
-    # 요일 헤더
     html += "<div class='month-grid'>"
     for d in ["월", "화", "수", "목", "금", "토", "일"]:
         html += f"<div class='month-header'>{d}</div>"
 
-    # 빈 칸 (1일 전까지)
     for _ in range(start_weekday):
         html += "<div class='day-cell'></div>"
 
-    # 날짜 채우기
     for d in range(1, num_days + 1):
-        weekday = (start_weekday + d - 1) % 7  # 0=월
+        weekday = (start_weekday + d - 1) % 7
         day_name = days_kr[weekday]
         html += "<div class='day-cell'>"
         html += f"<div class='day-num'>{d}</div>"
-
-        # 해당 요일의 과목/과제 제목 표시
         titles = titles_by_day.get(day_name, [])
         for t in titles:
             html += f"<span class='month-tag'>{t}</span>"
         html += "</div>"
 
     html += "</div></div>"
-
     st.markdown(html, unsafe_allow_html=True)
 
 
-# ---------------- 렌더링 ----------------
-if view_mode == "주간":
-    render_weekly_view(slots)
-else:
-    render_monthly_view(slots)
+# ------------------ 메인 컨텐츠 ------------------
+# 상단 헤더는 홈 탭에서만 (이미지처럼)
+if active_tab == "home":
+    col_left, col_center, col_right = st.columns([1, 1.4, 1])
+    with col_left:
+        st.markdown("### 시간표 1")
+    with col_center:
+        st.markdown(
+            "<div style='text-align:center;font-weight:600;margin-top:4px;'>2025년 11월 5주차</div>",
+            unsafe_allow_html=True,
+        )
+
+    view_mode = st.radio(
+        "view_mode",
+        options=["주간", "월간"],
+        index=0,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    if view_mode == "주간":
+        render_weekly_view(slots)
+    else:
+        render_monthly_view(slots)
+
+elif active_tab == "task":
+    st.subheader("과제")
+    st.write("여기에 과제 관리 화면 넣으면 됨 (지금은 자리만 잡아둔 상태).")
+
+elif active_tab == "ai":
+    st.subheader("AI")
+    st.write("여기에 AI 추천 화면 넣으면 됨 (지금은 자리만 잡아둔 상태).")
+
+elif active_tab == "settings":
+    st.subheader("설정")
+    st.write("여기에 설정 화면 넣으면 됨.")
+
+# ------------------ 하단 탭 네비게이션 ------------------
+# 버튼은 클릭 이벤트만 담당, 실제 모양은 아래 HTML이 담당
+nav_container = st.container()
+with nav_container:
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        if st.button("home", key="nav_home", help="홈", type="secondary"):
+            st.session_state.active_tab = "home"
+    with c2:
+        if st.button("task", key="nav_task", help="과제", type="secondary"):
+            st.session_state.active_tab = "task"
+    with c3:
+        if st.button("ai", key="nav_ai", help="AI", type="secondary"):
+            st.session_state.active_tab = "ai"
+    with c4:
+        if st.button("settings", key="nav_settings", help="설정", type="secondary"):
+            st.session_state.active_tab = "settings"
+
+# 실제 하단 바 UI (아이콘/텍스트)
+st.markdown(
+    f"""
+    <div class="bottom-nav">
+      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='home' else ''}">
+        <div class="bottom-nav-icon">🏠</div>
+        홈
+      </div>
+      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='task' else ''}">
+        <div class="bottom-nav-icon">✅</div>
+        과제
+      </div>
+      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='ai' else ''}">
+        <div class="bottom-nav-icon">✨</div>
+        AI
+      </div>
+      <div class="bottom-nav-item {'bottom-nav-active' if active_tab=='settings' else ''}">
+        <div class="bottom-nav-icon">⚙️</div>
+        설정
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
