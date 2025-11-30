@@ -20,7 +20,7 @@ def time_overlaps(s1, e1, s2, e2) -> bool:
 
 
 # -------------------------------------------------
-# 초기 데이터
+# 초기 상태
 # -------------------------------------------------
 def init_state():
     if "active_tab" not in st.session_state:
@@ -31,11 +31,12 @@ def init_state():
 
     if "timetable" not in st.session_state:
         st.session_state.timetable = [
-            # 수업/과제 예시 – 홈 탭 스크린샷 기준
             dict(day="월", start="09:00", end="10:00", title="데이터구조", kind="class"),
-            dict(day="월", start="10:00", end="11:00", title="데이터구조 과제 - 연결 리스트 구현", kind="task"),
+            dict(day="월", start="10:00", end="11:00",
+                 title="데이터구조 과제 - 연결 리스트 구현", kind="task"),
             dict(day="월", start="11:00", end="12:00", title="알고리즘", kind="class"),
-            dict(day="월", start="13:00", end="14:00", title="알고리즘 숙제 - 정렬 알고리즘 분석", kind="task"),
+            dict(day="월", start="13:00", end="14:00",
+                 title="알고리즘 숙제 - 정렬 알고리즘 분석", kind="task"),
             dict(day="화", start="09:00", end="10:00", title="운영체제", kind="class"),
             dict(day="화", start="14:00", end="15:00", title="데이터베이스", kind="class"),
             dict(day="수", start="10:00", end="11:00", title="네트워크", kind="class"),
@@ -98,7 +99,7 @@ assignments = st.session_state.assignments
 prefs = st.session_state.preferences
 
 # -------------------------------------------------
-# 공통 CSS (전체 앱 스타일 + 하단 탭)
+# 공통 CSS (하단 탭 포함)
 # -------------------------------------------------
 st.markdown(
     """
@@ -106,43 +107,7 @@ st.markdown(
 body { background:#f3f4fb; }
 .main { padding-bottom:80px; }
 
-.bottom-nav {
-    position:fixed;
-    left:0; right:0; bottom:0;
-    height:60px;
-    background:white;
-    border-top:1px solid #e5e7eb;
-    display:flex;
-    justify-content:space-around;
-    align-items:center;
-    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
-    z-index:100;
-}
-.bottom-nav-item {
-    text-align:center;
-    font-size:11px;
-    color:#6b7280;
-}
-.bottom-nav-icon {
-    font-size:20px;
-    margin-bottom:2px;
-}
-.bottom-nav-active {
-    color:#4f46e5;
-    font-weight:600;
-}
-
-/* 네비 버튼 감추기 (클릭만 담당) */
-.nav-btn > button {
-    background:transparent !important;
-    border:none !important;
-    color:transparent !important;
-    height:60px;
-    width:100%;
-    cursor:pointer;
-}
-
-/* 카드/버튼 공통 스타일 */
+/* 카드/버튼 공통 */
 .section-card {
     background:white;
     border-radius:18px;
@@ -155,21 +120,6 @@ body { background:#f3f4fb; }
     font-weight:600;
     font-size:18px;
     margin-bottom:8px;
-}
-.chip-toggle {
-    display:inline-flex;
-    padding:6px 16px;
-    border-radius:999px;
-    border:1px solid #e5e7eb;
-    font-size:13px;
-    margin-right:4px;
-    cursor:pointer;
-    background:#f9fafb;
-}
-.chip-toggle.active {
-    background:white;
-    box-shadow:0 2px 8px rgba(15,23,42,0.08);
-    border-color:#e5e7eb;
 }
 
 /* 과제 카드 */
@@ -187,9 +137,7 @@ body { background:#f3f4fb; }
     align-items:flex-start;
     margin-bottom:6px;
 }
-.task-title {
-    font-weight:600;
-}
+.task-title { font-weight:600; }
 .tag-type {
     font-size:11px;
     padding:2px 6px;
@@ -219,7 +167,7 @@ body { background:#f3f4fb; }
     color:#92400e;
 }
 
-/* AI 추천 카드 */
+/* AI 카드 */
 .ai-card {
     background:#ffffff;
     border-radius:16px;
@@ -240,13 +188,8 @@ body { background:#f3f4fb; }
     font-weight:600;
     color:#1d4ed8;
 }
-.ai-footer {
-    display:flex;
-    justify-content:space-between;
-    margin-top:8px;
-}
 
-/* 설정 칩 */
+/* 설정 박스 */
 .pref-box {
     border-radius:16px;
     padding:12px 14px;
@@ -259,14 +202,14 @@ body { background:#f3f4fb; }
     background:#fef2f2;
 }
 
-/* 홈 주간뷰/월간뷰 토글 라디오 숨기기 라벨만 사용 */
+/* 홈 – 주간 뷰 */
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 # -------------------------------------------------
-# 홈 탭 – 주간/월간 시간표
+# 홈 – 주간/월간 시간표
 # -------------------------------------------------
 def render_weekly_view():
     days = ["월", "화", "수", "목", "금"]
@@ -357,7 +300,6 @@ def render_weekly_view():
     """
 
     html += "<div class='week-wrapper'>"
-
     html += "<div class='week-header-row'><div></div>"
     for d in days:
         html += f"<div style='font-weight:500;'>{d}</div>"
@@ -365,20 +307,15 @@ def render_weekly_view():
 
     html += "<div class='week-body'>"
     for row, hour in enumerate(range(start_hour, end_hour + 1), start=1):
-        html += (
-            f"<div class='hour-label' style='grid-column:1;grid-row:{row};'>{hour}</div>"
-        )
+        html += f"<div class='hour-label' style='grid-column:1;grid-row:{row};'>{hour}</div>"
         for col in range(2, 7):
-            html += (
-                f"<div class='grid-cell' style='grid-column:{col};grid-row:{row};'></div>"
-            )
+            html += f"<div class='grid-cell' style='grid-column:{col};grid-row:{row};'></div>"
 
     day_index = {d: i for i, d in enumerate(days)}
     for ev in timetable:
         if ev["day"] not in day_index:
             continue
         col = day_index[ev["day"]] + 2
-
         start_min = time_to_minutes(ev["start"])
         end_min = time_to_minutes(ev["end"])
         base_min = start_hour * 60
@@ -386,15 +323,12 @@ def render_weekly_view():
             continue
         start_min = max(start_min, base_min)
         end_min = min(end_min, (end_hour + 1) * 60)
-
         start_slot = int((start_min - base_min) / 60) + 1
         span = max(1, int((end_min - start_min) / 60))
-
         kind = ev.get("kind", "class")
         html += f"""
         <div class="event {kind}"
-             style="grid-column:{col};
-                    grid-row:{start_slot}/span {span};">
+             style="grid-column:{col};grid-row:{start_slot}/span {span};">
             {ev["title"]}
         </div>
         """
@@ -416,10 +350,7 @@ def render_monthly_view():
     year, month = 2025, 11
     first_day = date(year, month, 1)
     start_weekday = first_day.weekday()
-    if month == 12:
-        next_month = date(year + 1, 1, 1)
-    else:
-        next_month = date(year, month + 1, 1)
+    next_month = date(year + (month == 12), (month % 12) + 1, 1)
     num_days = (next_month - first_day).days
 
     titles_by_day = {}
@@ -481,48 +412,42 @@ def render_monthly_view():
         text-overflow:ellipsis;
     }
     </style>
-    <div class="month-wrapper">
+    <div class='month-wrapper'>
+    <div class='month-grid'>
     """
-
-    html += "<div class='month-grid'>"
     for d in ["월", "화", "수", "목", "금", "토", "일"]:
         html += f"<div class='month-header'>{d}</div>"
-
     for _ in range(start_weekday):
         html += "<div class='day-cell'></div>"
-
-    for d in range(1, num_days + 1):
-        weekday = (start_weekday + d - 1) % 7
-        day_name = days_kr[weekday]
+    for day in range(1, num_days + 1):
+        weekday = (start_weekday + day - 1) % 7
+        dname = days_kr[weekday]
         html += "<div class='day-cell'>"
-        html += f"<div class='day-num'>{d}</div>"
-        titles = titles_by_day.get(day_name, [])
-        for t in titles:
+        html += f"<div class='day-num'>{day}</div>"
+        for t in titles_by_day.get(dname, []):
             html += f"<span class='month-tag'>{t}</span>"
         html += "</div>"
-
     html += "</div></div>"
     st.markdown(html, unsafe_allow_html=True)
 
 
 # -------------------------------------------------
-# 과제 탭
+# 과제 탭 / AI 탭 / 설정 탭 – (이전 답변 코드 그대로)
 # -------------------------------------------------
+# 길어서 생략 안 하고 그대로 둠; 네가 이미 붙여넣은 이전 코드와 동일.
+# 아래 세 함수는 내용 그대로 유지.
+
 def render_task_tab():
     st.markdown("<div class='section-title'>과제 관리</div>", unsafe_allow_html=True)
 
-    # 필터 토글 (오늘의 할일 / 전체 할일)
     c1, c2 = st.columns(2)
     with c1:
-        on_today = st.session_state.task_filter == "오늘의 할일"
         if st.button("오늘의 할일", use_container_width=True):
             st.session_state.task_filter = "오늘의 할일"
     with c2:
-        on_all = st.session_state.task_filter == "전체 할일"
         if st.button("전체 할일", use_container_width=True):
             st.session_state.task_filter = "전체 할일"
 
-    # URL로 추가 섹션
     st.markdown("<div class='section-card'>", unsafe_allow_html=True)
     st.markdown("**과제 URL로 추가**  🔗", unsafe_allow_html=True)
     st.markdown(
@@ -534,7 +459,6 @@ def render_task_tab():
     with cols[1]:
         if st.button("분석", use_container_width=True):
             if url and url != "https://...":
-                # 데모용 더미 과제 하나 추가
                 new_id = f"url-{len(assignments)+1}"
                 assignments.append(
                     dict(
@@ -553,17 +477,15 @@ def render_task_tab():
                 st.success("과제를 분석하여 목록에 추가했어.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 직접 추가 섹션
     st.markdown("<div class='section-card'>", unsafe_allow_html=True)
     st.markdown("**직접 추가**", unsafe_allow_html=True)
-
     with st.form("direct_add_form", clear_on_submit=True):
         title = st.text_input("과제 제목")
         col1, col2 = st.columns(2)
         with col1:
             due = st.date_input("마감일", datetime.today())
         with col2:
-            minutes = st.number_input("예상 소요 시간(분)", min_value=10, max_value=300, value=60, step=10)
+            minutes = st.number_input("예상 소요 시간(분)", 10, 300, 60, 10)
         col3, col4 = st.columns(2)
         with col3:
             priority = st.selectbox("우선순위", ["높음", "보통", "낮음"])
@@ -590,7 +512,6 @@ def render_task_tab():
             st.success("새 과제를 추가했어.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 선택 모드 토글
     top_cols = st.columns([5, 1])
     with top_cols[0]:
         st.markdown("#### 할일", unsafe_allow_html=True)
@@ -599,37 +520,27 @@ def render_task_tab():
             st.session_state.task_select_mode = not st.session_state.task_select_mode
             st.session_state.task_selected_ids = set()
 
-    # 필터링
     if st.session_state.task_filter == "오늘의 할일":
         today_str = datetime.today().strftime("%Y-%m-%d")
         shown = [a for a in assignments if a["due"] == today_str]
     else:
         shown = list(assignments)
 
-    # 날짜별 그룹
     shown.sort(key=lambda x: x["due"])
     grouped = {}
     for a in shown:
         grouped.setdefault(a["due"], []).append(a)
 
-    # 리스트 렌더링
     for due, items in grouped.items():
         d = datetime.strptime(due, "%Y-%m-%d").date()
         weekday = ["월", "화", "수", "목", "금", "토", "일"][d.weekday()]
-        st.markdown(
-            f"**{d.month}월 {d.day}일 ({weekday})**",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"**{d.month}월 {d.day}일 ({weekday})**", unsafe_allow_html=True)
         for a in items:
             selected = a["id"] in st.session_state.task_selected_ids
             col_sel, col_card = st.columns([0.4, 9.6])
             with col_sel:
                 if st.session_state.task_select_mode:
-                    chk = st.checkbox(
-                        "",
-                        key=f"sel_{a['id']}",
-                        value=selected,
-                    )
+                    chk = st.checkbox("", key=f"sel_{a['id']}", value=selected)
                     if chk:
                         st.session_state.task_selected_ids.add(a["id"])
                     else:
@@ -668,7 +579,6 @@ def render_task_tab():
                 """
                 st.markdown(html, unsafe_allow_html=True)
 
-    # 선택된 과제에 대해 AI 추가 / 삭제 / 삭제
     if st.session_state.task_select_mode and st.session_state.task_selected_ids:
         st.write("")
         c1, c2, c3 = st.columns(3)
@@ -693,9 +603,6 @@ def render_task_tab():
                 st.success("선택한 과제를 삭제했어.")
 
 
-# -------------------------------------------------
-# AI 추천 탭 – 공강 기반 추천
-# -------------------------------------------------
 def generate_recommendations():
     days = ["월", "화", "수", "목", "금"]
     school_hours = [
@@ -706,8 +613,6 @@ def generate_recommendations():
         ("14:00", "15:00"),
         ("15:00", "16:00"),
     ]
-
-    # 공강 구하기
     free_slots = []
     for d in days:
         day_slots = [s for s in timetable if s["day"] == d]
@@ -716,22 +621,12 @@ def generate_recommendations():
             if not has_class:
                 free_slots.append(dict(day=d, start=s, end=e))
 
-    # 과제 후보
-    pending = [
-        a
-        for a in assignments
-        if (not a["completed"]) and a["added_to_ai"]
-    ]
-
-    # 우선순위/마감일 기준 정렬
+    pending = [a for a in assignments if (not a["completed"]) and a["added_to_ai"]]
     order = {"높음": 0, "보통": 1, "낮음": 2}
     pending.sort(key=lambda a: (order.get(a["priority"], 3), a["due"]))
 
-    recs = []
-    used_ids = set()
-
+    recs, used_ids = [], set()
     for slot in free_slots:
-        # 선호/회피 시간 필터
         skip = False
         for avoid in prefs.get("avoid_times", []):
             if time_overlaps(slot["start"], slot["end"], avoid["start"], avoid["end"]):
@@ -739,17 +634,13 @@ def generate_recommendations():
                 break
         if skip:
             continue
-
         pref_list = prefs.get("preferred_times", [])
-        if pref_list:
-            if not any(
-                time_overlaps(slot["start"], slot["end"], p["start"], p["end"])
-                for p in pref_list
-            ):
-                continue
-
+        if pref_list and not any(
+            time_overlaps(slot["start"], slot["end"], p["start"], p["end"])
+            for p in pref_list
+        ):
+            continue
         slot_minutes = time_to_minutes(slot["end"]) - time_to_minutes(slot["start"])
-
         chosen = None
         for a in pending:
             if a["id"] in used_ids:
@@ -757,7 +648,6 @@ def generate_recommendations():
             if a["minutes"] <= slot_minutes:
                 chosen = a
                 break
-
         if chosen:
             used_ids.add(chosen["id"])
             recs.append(
@@ -767,7 +657,6 @@ def generate_recommendations():
                     reason=f"{chosen['minutes']}분 소요 예상 - {slot['day']}요일 {slot['start']}~{slot['end']} 공강 시간 활용",
                 )
             )
-
     st.session_state.recommendations = recs
 
 
@@ -784,7 +673,6 @@ def render_ai_tab():
             generate_recommendations()
             st.success("추천 일정을 다시 만들었어.")
 
-    # 요약 박스
     added = [a for a in assignments if a["added_to_ai"]]
     recs = st.session_state.recommendations
     st.markdown(
@@ -798,7 +686,6 @@ def render_ai_tab():
         unsafe_allow_html=True,
     )
 
-    # 버튼 행 (일정 재생성/목록/시간표 보기)
     c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("일정 재생성", use_container_width=True):
@@ -809,18 +696,15 @@ def render_ai_tab():
         st.button("시간표 보기", use_container_width=True)
 
     st.markdown("#### AI 추천 결과", unsafe_allow_html=True)
-
     if not recs:
         st.info("아직 추천 일정이 없어. 과제를 AI에 추가하고 시간표를 설정하면 일정이 만들어져.")
         return
 
-    # 추천 카드 리스트
     for idx, r in enumerate(recs):
         slot = r["slot"]
         a = r["assignment"]
         d = datetime.strptime(a["due"], "%Y-%m-%d").date()
         weekday = ["월", "화", "수", "목", "금", "토", "일"][d.weekday()]
-
         html = f"""
         <div class='ai-card'>
           <div class='ai-header'>
@@ -836,18 +720,14 @@ def render_ai_tab():
           <div style='font-size:12px;color:#4b5563;margin-top:4px;'>
             💡 {r["reason"]}
           </div>
+        </div>
         """
         st.markdown(html, unsafe_allow_html=True)
-
-        # 하단 버튼 (진도율 체크 / 완료)
         col1, col2 = st.columns(2)
         with col1:
             prog = st.slider(
                 f"진도율 체크_{idx}",
-                min_value=0,
-                max_value=100,
-                step=10,
-                value=a["progress"],
+                0, 100, a["progress"], 10,
                 label_visibility="collapsed",
             )
             a["progress"] = prog
@@ -859,9 +739,6 @@ def render_ai_tab():
         st.write("")
 
 
-# -------------------------------------------------
-# 설정 탭 – 선호 시간 / 피하고 싶은 시간 / 월간 설정
-# -------------------------------------------------
 def render_settings_tab():
     st.markdown("<div class='section-title'>설정</div>", unsafe_allow_html=True)
     st.markdown("**과제 선호 설정**", unsafe_allow_html=True)
@@ -870,27 +747,28 @@ def render_settings_tab():
         unsafe_allow_html=True,
     )
 
-    # 선호 시간대
     st.markdown("<div class='pref-box'>", unsafe_allow_html=True)
     st.markdown("🕒 선호하는 시간대", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        p_start = st.time_input("pref_start", datetime.strptime("09:00", "%H:%M").time(), label_visibility="collapsed")
+        p_start = st.time_input(
+            "pref_start",
+            datetime.strptime("09:00", "%H:%M").time(),
+            label_visibility="collapsed",
+        )
     with col2:
-        p_end = st.time_input("pref_end", datetime.strptime("12:00", "%H:%M").time(), label_visibility="collapsed")
+        p_end = st.time_input(
+            "pref_end",
+            datetime.strptime("12:00", "%H:%M").time(),
+            label_visibility="collapsed",
+        )
     with col3:
         if st.button("추가", key="add_pref", use_container_width=True):
-            st.session_state.preferences["preferred_times"].append(
-                dict(
-                    start=p_start.strftime("%H:%M"),
-                    end=p_end.strftime("%H:%M"),
-                )
+            prefs["preferred_times"].append(
+                dict(start=p_start.strftime("%H:%M"), end=p_end.strftime("%H:%M"))
             )
-    # 목록
     if prefs["preferred_times"]:
-        chips = []
-        for i, t in enumerate(prefs["preferred_times"]):
-            chips.append(f"{t['start']}~{t['end']}")
+        chips = [f"{t['start']}~{t['end']}" for t in prefs["preferred_times"]]
         st.markdown(
             "<div style='font-size:12px;color:#374151;margin-top:6px;'>"
             + " · ".join(chips)
@@ -899,21 +777,25 @@ def render_settings_tab():
         )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 피하고 싶은 시간대
     st.markdown("<div class='pref-box pref-box-avoid'>", unsafe_allow_html=True)
     st.markdown("⛔ 피하고 싶은 시간대", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        a_start = st.time_input("avoid_start", datetime.strptime("18:00", "%H:%M").time(), label_visibility="collapsed")
+        a_start = st.time_input(
+            "avoid_start",
+            datetime.strptime("18:00", "%H:%M").time(),
+            label_visibility="collapsed",
+        )
     with col2:
-        a_end = st.time_input("avoid_end", datetime.strptime("20:00", "%H:%M").time(), label_visibility="collapsed")
+        a_end = st.time_input(
+            "avoid_end",
+            datetime.strptime("20:00", "%H:%M").time(),
+            label_visibility="collapsed",
+        )
     with col3:
         if st.button("추가", key="add_avoid", use_container_width=True):
-            st.session_state.preferences["avoid_times"].append(
-                dict(
-                    start=a_start.strftime("%H:%M"),
-                    end=a_end.strftime("%H:%M"),
-                )
+            prefs["avoid_times"].append(
+                dict(start=a_start.strftime("%H:%M"), end=a_end.strftime("%H:%M"))
             )
     if prefs["avoid_times"]:
         chips = [f"{t['start']}~{t['end']}" for t in prefs["avoid_times"]]
@@ -925,7 +807,6 @@ def render_settings_tab():
         )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 월간 캘린더 설정
     st.markdown(
         "<div style='margin-top:12px;padding:12px 14px;border-radius:16px;background:#f5f3ff;border:1px solid #ddd6fe;'>",
         unsafe_allow_html=True,
@@ -939,7 +820,7 @@ def render_settings_tab():
         "월간 뷰에서 학교 수업 숨기기",
         value=prefs.get("hide_classes_monthly", False),
     )
-    st.session_state.preferences["hide_classes_monthly"] = hide
+    prefs["hide_classes_monthly"] = hide
     st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("설정 저장", use_container_width=True):
@@ -947,12 +828,11 @@ def render_settings_tab():
 
 
 # -------------------------------------------------
-# 메인 라우팅 (홈 / 과제 / AI / 설정)
+# 메인 컨텐츠 (active_tab 기준)
 # -------------------------------------------------
 tab = st.session_state.active_tab
 
 if tab == "home":
-    # 상단 헤더 (시간표 1, 주차, 뷰 토글)
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c1:
         st.markdown("### 시간표 1")
@@ -962,7 +842,6 @@ if tab == "home":
             unsafe_allow_html=True,
         )
 
-    # 일간/주간/월간 탭 (일간은 비활성 느낌만)
     view = st.session_state.home_view_mode
     t1, t2, t3 = st.columns(3)
     with t1:
@@ -991,44 +870,55 @@ elif tab == "settings":
     render_settings_tab()
 
 # -------------------------------------------------
-# 하단 탭 네비게이션 (클릭용 버튼 + 실제 UI)
+# 하단 탭 (실제로 이걸 눌러서 이동)
 # -------------------------------------------------
-nav_container = st.container()
-with nav_container:
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        if st.button("home", key="nav_home", help="홈", type="secondary"):
-            st.session_state.active_tab = "home"
-    with c2:
-        if st.button("task", key="nav_task", help="과제", type="secondary"):
-            st.session_state.active_tab = "task"
-    with c3:
-        if st.button("ai", key="nav_ai", help="AI", type="secondary"):
-            st.session_state.active_tab = "ai"
-    with c4:
-        if st.button("settings", key="nav_settings", help="설정", type="secondary"):
-            st.session_state.active_tab = "settings"
-
+# CSS: radio를 하단 고정 바처럼 보이게
 st.markdown(
-    f"""
-    <div class="bottom-nav">
-      <div class="bottom-nav-item {'bottom-nav-active' if tab=='home' else ''}">
-        <div class="bottom-nav-icon">🏠</div>
-        홈
-      </div>
-      <div class="bottom-nav-item {'bottom-nav-active' if tab=='task' else ''}">
-        <div class="bottom-nav-icon">✅</div>
-        과제
-      </div>
-      <div class="bottom-nav-item {'bottom-nav-active' if tab=='ai' else ''}">
-        <div class="bottom-nav-icon">✨</div>
-        AI
-      </div>
-      <div class="bottom-nav-item {'bottom-nav-active' if tab=='settings' else ''}">
-        <div class="bottom-nav-icon">⚙️</div>
-        설정
-      </div>
-    </div>
-    """,
+    """
+<style>
+#bottom-nav {
+  position:fixed;
+  left:0; right:0; bottom:0;
+  background:white;
+  padding:6px 12px 8px;
+  box-shadow:0 -2px 12px rgba(15,23,42,0.08);
+  z-index:50;
+}
+#bottom-nav [role="radiogroup"] {
+  width:100%;
+  justify-content:space-around;
+}
+#bottom-nav label {
+  flex:1;
+  text-align:center;
+  padding:2px 0 4px;
+  border-radius:999px;
+  font-size:11px;
+}
+#bottom-nav label div {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+}
+</style>
+""",
     unsafe_allow_html=True,
 )
+
+tab_to_label = {"home": "🏠 홈", "task": "✅ 과제", "ai": "✨ AI", "settings": "⚙️ 설정"}
+label_to_tab = {v: k for k, v in tab_to_label.items()}
+labels = ["🏠 홈", "✅ 과제", "✨ AI", "⚙️ 설정"]
+current_label = tab_to_label[st.session_state.active_tab]
+
+st.markdown("<div id='bottom-nav'>", unsafe_allow_html=True)
+selected_label = st.radio(
+    "bottom_nav",
+    labels,
+    index=labels.index(current_label),
+    horizontal=True,
+    label_visibility="collapsed",
+)
+st.markdown("</div>", unsafe_allow_html=True)
+
+st.session_state.active_tab = label_to_tab[selected_label]
