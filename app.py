@@ -1,244 +1,113 @@
 import streamlit as st
-import math
+from datetime import datetime, timedelta
 
-# ---------- 초기 설정 ----------
-st.set_page_config(
-    page_title="Mobile Calculator",
-    layout="wide"
-)
+# ---------- 데이터 구조 ----------
+class TimeSlot:
+    def __init__(self, day, start, end, subject=None):
+        self.day = day
+        self.start = start
+        self.end = end
+        self.subject = subject
 
-# ---------- 세션 상태 기본값 ----------
-if "language" not in st.session_state:
-    st.session_state.language = "ko"   # ko / en
-if "theme" not in st.session_state:
-    st.session_state.theme = "light"   # light / dark
+class Assignment:
+    def __init__(self, id, title, due, spend, priority, added=True):
+        self.id = id
+        self.title = title
+        self.due = due
+        self.spend = spend
+        self.priority = priority
+        self.added = added
+        self.completed = False
+        self.progress = 0
 
-# ---------- 다국어 텍스트 ----------
-TEXTS = {
-    "title": {
-        "ko": "📱 모바일 계산기",
-        "en": "📱 Mobile Calculator",
-    },
-    "basic_tab": {
-        "ko": "일반 계산기",
-        "en": "Basic",
-    },
-    "sci_tab": {
-        "ko": "공학용 계산기",
-        "en": "Scientific",
-    },
-    "settings_tab": {
-        "ko": "설정",
-        "en": "Settings",
-    },
-    "basic_desc": {
-        "ko": "사칙연산 위주 일반 계산기야. 예: 1+2*3/4",
-        "en": "Basic calculator for +, -, ×, ÷. e.g., 1+2*3/4",
-    },
-    "sci_desc": {
-        "ko": "공학용 함수 사용 가능: sin, cos, tan, log, sqrt, pi, e 등.",
-        "en": "Scientific functions: sin, cos, tan, log, sqrt, pi, e, etc.",
-    },
-    "expr_label": {
-        "ko": "계산식 입력",
-        "en": "Enter expression",
-    },
-    "calc_button": {
-        "ko": "계산하기",
-        "en": "Calculate",
-    },
-    "result": {
-        "ko": "결과",
-        "en": "Result",
-    },
-    "error": {
-        "ko": "계산할 수 없는 식이야. 수식과 함수 이름을 확인해줘.",
-        "en": "Invalid expression. Please check operators and function names.",
-    },
-    "settings_language": {
-        "ko": "언어",
-        "en": "Language",
-    },
-    "settings_theme": {
-        "ko": "화면 모드",
-        "en": "Theme",
-    },
-    "settings_saved": {
-        "ko": "설정이 적용되었어. 상단 탭이 마음에 안 들면 언어/모드 다시 바꿔봐.",
-        "en": "Settings applied. If you don’t like it, change language/theme again.",
-    },
-    "theme_light": {
-        "ko": "라이트",
-        "en": "Light",
-    },
-    "theme_dark": {
-        "ko": "다크",
-        "en": "Dark",
-    },
-    "available_funcs": {
-        "ko": "사용 가능 함수: sin, cos, tan, log, sqrt, abs, round, pi, e",
-        "en": "Available: sin, cos, tan, log, sqrt, abs, round, pi, e",
-    },
-}
+# ---------- 초기 데이터 ----------
+st.session_state.setdefault("timetable", [
+    TimeSlot("월", "09:00", "10:00", "데이터구조"),
+    TimeSlot("월", "11:00", "12:00", "알고리즘"),
+    TimeSlot("화", "09:00", "10:00", "운영체제"),
+    TimeSlot("화", "14:00", "15:00", "데이터베이스"),
+    TimeSlot("수", "10:00", "11:00", "네트워크"),
+    TimeSlot("목", "09:00", "10:00", "소프트웨어공학"),
+    TimeSlot("금", "13:00", "14:00", "인공지능"),
+])
 
-def t(key: str) -> str:
-    lang = st.session_state.language
-    return TEXTS[key][lang]
+st.session_state.setdefault("assignments", [
+    Assignment("1", "데이터구조 과제 - 연결 리스트 구현", "2025-12-05", 60, "high"),
+    Assignment("2", "알고리즘 숙제 - 정렬 알고리즘 분석", "2025-12-07", 50, "medium")
+])
 
-# ---------- 테마 적용 ----------
-def apply_theme():
-    theme = st.session_state.theme
-    if theme == "dark":
-        bg = "#020617"
-        card = "#0f172a"
-        text = "#e5e7eb"
-        accent = "#22c55e"
+TAB_HOME, TAB_TASK, TAB_AI, TAB_SET = st.tabs(["🏠 홈", "📝 과제", "✨ AI", "⚙️ 설정"])
+
+# -----------------------------------------------------------
+# 1️⃣ 홈 탭
+# -----------------------------------------------------------
+with TAB_HOME:
+    st.subheader("시간표 1")
+    st.write("2025년 11월 5주차")
+
+    days = ["월", "화", "수", "목", "금"]
+    timetable = st.session_state.timetable
+
+    cols = st.columns(len(days))
+    for i, day in enumerate(days):
+        with cols[i]:
+            st.markdown(f"**{day}**")
+            for t in timetable:
+                if t.day == day:
+                    st.success(f"{t.start}-{t.end}\n\n**{t.subject}**")
+
+# -----------------------------------------------------------
+# 2️⃣ 과제 탭
+# -----------------------------------------------------------
+with TAB_TASK:
+    st.subheader("과제 관리")
+
+    for a in st.session_state.assignments:
+        st.write(f"📌 {a.title}")
+        st.write(f"📅 마감일: {a.due} | ⏱ {a.spend}분 | 🔥 우선순위: {a.priority}")
+        done = st.checkbox("완료", key=f"done_{a.id}")
+        if done:
+            a.completed = True
+            a.progress = 100
+
+# -----------------------------------------------------------
+# 3️⃣ AI 추천 탭
+# -----------------------------------------------------------
+with TAB_AI:
+    st.subheader("AI 추천 일정")
+
+    free_slots = []
+    school_hours = [("09:00", "10:00"), ("10:00", "11:00"),
+                    ("11:00", "12:00"), ("13:00", "14:00"),
+                    ("14:00", "15:00")]
+
+    busy = {(t.day, t.start, t.end) for t in timetable}
+
+    for day in days:
+        for s, e in school_hours:
+            if not any(t.day == day and t.start == s for t in timetable):
+                free_slots.append((day, s, e))
+
+    pending = [a for a in st.session_state.assignments if not a.completed]
+
+    if free_slots and pending:
+        slot = free_slots[0]
+        assign = pending[0]
+        st.info(f"""
+        🧠 추천 일정
+
+        - 📅 {slot[0]}요일 {slot[1]} - {slot[2]}
+        - 과제: **{assign.title}**
+        - 예상: {assign.spend}분
+        """)
     else:
-        bg = "#f9fafb"
-        card = "#ffffff"
-        text = "#0f172a"
-        accent = "#2563eb"
+        st.warning("추천할 일정이 없습니다.")
 
-    st.markdown(
-        f"""
-        <style>
-        body {{
-            background-color: {bg};
-        }}
-        .stApp {{
-            background-color: {bg};
-            color: {text};
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            font-size: 0.9rem;
-        }}
-        .stButton>button {{
-            border-radius: 999px;
-            padding: 0.5rem 1.2rem;
-            font-weight: 600;
-        }}
-        .calc-card {{
-            background-color: {card};
-            padding: 1rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 30px rgba(15,23,42,0.18);
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    return accent
-
-accent_color = apply_theme()
-
-# ---------- 안전한 계산 함수 ----------
-allowed_names = {
-    k: getattr(math, k) for k in dir(math) if not k.startswith("_")
-}
-allowed_names.update({
-    "abs": abs,
-    "round": round,
-})
-
-def safe_eval(expr: str):
-    """
-    숫자, 기본 연산자(+-*/**), math 함수만 허용.
-    """
-    expr = expr.strip()
-    if not expr:
-        return ""
-    code = compile(expr, "<string>", "eval")
-    for name in code.co_names:
-        if name not in allowed_names:
-            raise NameError(f"사용 불가 이름: {name}")
-    return eval(code, {"__builtins__": {}}, allowed_names)
-
-# ---------- 메인 UI ----------
-st.markdown(f"<h2 style='margin-bottom:0.5rem;'>{t('title')}</h2>", unsafe_allow_html=True)
-st.caption("Streamlit · Mobile first")
-
-# 탭 생성 (언어에 따라 라벨 바뀜)
-tab_basic, tab_sci, tab_settings = st.tabs(
-    [t("basic_tab"), t("sci_tab"), t("settings_tab")]
-)
-
-# ----- 1) 일반 계산기 탭 -----
-with tab_basic:
-    st.markdown("<div class='calc-card'>", unsafe_allow_html=True)
-    st.write(t("basic_desc"))
-    expr_basic = st.text_input(t("expr_label"), key="expr_basic", placeholder="1+2*3/4")
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button(t("calc_button"), key="btn_basic"):
-            try:
-                result = safe_eval(expr_basic)
-                st.session_state.basic_result = result
-            except Exception:
-                st.session_state.basic_result = None
-
-    result = st.session_state.get("basic_result", "")
-    if result == "":
-        pass
-    elif result is None:
-        st.error(t("error"))
-    else:
-        st.success(f"{t('result')}: {result}")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ----- 2) 공학용 계산기 탭 -----
-with tab_sci:
-    st.markdown("<div class='calc-card'>", unsafe_allow_html=True)
-    st.write(t("sci_desc"))
-    st.info(t("available_funcs"))
-    expr_sci = st.text_input(
-        t("expr_label"),
-        key="expr_sci",
-        placeholder="sin(pi/2) + log(10) - sqrt(2)"
-    )
-    if st.button(t("calc_button"), key="btn_sci"):
-        try:
-            result = safe_eval(expr_sci)
-            st.session_state.sci_result = result
-        except Exception:
-            st.session_state.sci_result = None
-
-    result_sci = st.session_state.get("sci_result", "")
-    if result_sci == "":
-        pass
-    elif result_sci is None:
-        st.error(t("error"))
-    else:
-        st.success(f"{t('result')}: {result_sci}")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ----- 3) 설정 탭 -----
-with tab_settings:
-    st.markdown("<div class='calc-card'>", unsafe_allow_html=True)
-
-    # 언어
-    lang_label = st.radio(
-        t("settings_language"),
-        options=["한국어", "English"],
-        index=0 if st.session_state.language == "ko" else 1,
-        horizontal=True,
-    )
-    st.session_state.language = "ko" if lang_label == "한국어" else "en"
-
-    # 테마
-    theme_label = st.radio(
-        t("settings_theme"),
-        options=[TEXTS["theme_light"]["ko"], TEXTS["theme_dark"]["ko"]],
-        index=0 if st.session_state.theme == "light" else 1,
-        horizontal=True,
-    )
-    # 라벨이 한글 기준이니까 라이트/다크로 비교
-    if theme_label == TEXTS["theme_light"]["ko"]:
-        st.session_state.theme = "light"
-    else:
-        st.session_state.theme = "dark"
-
-    st.success(t("settings_saved"))
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.caption("※ 진짜 스트림릿 공식 다크 테마는 config로 바꾸는 거고, "
-               "여긴 데모라 CSS로 느낌만 바꾸는 방식이야.")
+# -----------------------------------------------------------
+# 4️⃣ 설정 탭
+# -----------------------------------------------------------
+with TAB_SET:
+    st.subheader("과제 선호 설정")
+    st.time_input("선호 시작 시간", datetime.strptime("09:00", "%H:%M"))
+    st.time_input("선호 종료 시간", datetime.strptime("12:00", "%H:%M"))
+    st.button("설정 저장")
