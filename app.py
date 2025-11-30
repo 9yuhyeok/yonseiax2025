@@ -872,43 +872,84 @@ elif tab == "settings":
 # -------------------------------------------------
 # 하단 탭 (실제로 이걸 눌러서 이동)
 # -------------------------------------------------
-# CSS: radio를 하단 고정 바처럼 보이게
+# CSS: 하단 탭을 분리형 버튼처럼 스타일링
 st.markdown(
     """
 <style>
 #bottom-nav {
   position:fixed;
   left:0; right:0; bottom:0;
-  background:white;
-  padding:6px 12px 8px;
-  box-shadow:0 -2px 12px rgba(15,23,42,0.08);
+  background:#f6f7fb;
+  padding:12px 14px 18px;
+  box-shadow:0 -6px 18px rgba(99,102,241,0.14);
   z-index:50;
+}
+#bottom-nav [data-baseweb="radio"] {
+  width:100%;
 }
 #bottom-nav [role="radiogroup"] {
   width:100%;
-  justify-content:space-around;
+  display:flex;
+  gap:0;
+  justify-content:space-between;
+  background:white;
+  padding:4px;
+  border-radius:14px;
+  border:1px solid #e5e7eb;
+  box-shadow:0 8px 22px rgba(79,70,229,0.12);
+  overflow:hidden;
+}
+#bottom-nav [role="radio"] {
+  flex:1;
+  margin:0;
+}
+#bottom-nav input[type="radio"] {
+  display:none;
 }
 #bottom-nav label {
-  flex:1;
-  text-align:center;
-  padding:2px 0 4px;
-  border-radius:999px;
-  font-size:11px;
+  width:100%;
+  background:transparent;
+  border:none;
+  border-right:1px solid #e5e7eb;
+  padding:10px 0 9px;
+  transition:all 0.18s ease;
+  cursor:pointer;
+}
+#bottom-nav [role="radio"]:last-child label {
+  border-right:none;
+}
+#bottom-nav label:hover {
+  background:#f8fafc;
+}
+#bottom-nav [role="radio"][aria-checked="true"] label {
+  background:linear-gradient(120deg,#eef2ff,#e0e7ff);
+  box-shadow:inset 0 0 0 1px #c4b5fd, 0 10px 22px rgba(79,70,229,0.18);
 }
 #bottom-nav label div {
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:2px;
+  gap:4px;
+  color:#4b5563;
+  font-weight:600;
+  white-space:pre-line;
+}
+#bottom-nav [role="radio"][aria-checked="true"] label div {
+  color:#4338ca;
 }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-tab_to_label = {"home": "🏠 홈", "task": "✅ 과제", "ai": "✨ AI", "settings": "⚙️ 설정"}
+tab_to_label = {
+    "home": "🏠\n홈",
+    "task": "✅\n과제",
+    "ai": "✨\nAI",
+    "settings": "⚙️\n설정",
+}
 label_to_tab = {v: k for k, v in tab_to_label.items()}
-labels = ["🏠 홈", "✅ 과제", "✨ AI", "⚙️ 설정"]
+labels = list(tab_to_label.values())
 current_label = tab_to_label[st.session_state.active_tab]
 
 st.markdown("<div id='bottom-nav'>", unsafe_allow_html=True)
