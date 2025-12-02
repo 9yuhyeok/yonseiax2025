@@ -15,16 +15,15 @@ selected = option_menu(
     orientation="horizontal",
 )
 
-# 시간표 데이터 생성
+# 시간표 데이터 (왼쪽 시간 열 제거)
 timetable_data = {
-    "": ["9", "10", "11", "12", "13", "14", "15", "16"],
     "월": ["", "", "", "", "", "", "", ""],
     "화": ["", "", "", "", "", "", "", ""],
     "수": ["", "", "", "", "", "", "", ""],
     "목": ["", "", "", "", "", "", "", ""],
     "금": ["", "", "", "", "", "", "", ""],
 }
-timetable_df = pd.DataFrame(timetable_data)
+timetable_df = pd.DataFrame(timetable_data, index=["9","10","11","12","13","14","15","16"])
 
 # 탭 화면
 if selected == "시간표":
